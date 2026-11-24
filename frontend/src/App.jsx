@@ -1,316 +1,481 @@
-const ArrowUpRight = () => (
-  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-    <path d="M5 15 15 5M6 5h9v9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
+import { useState } from 'react'
 
-const Pin = () => (
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-    <path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" strokeWidth="1.6" />
-    <circle cx="12" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-)
+/* ------------------------------------------------------------------ */
+/* Data                                                                */
+/* ------------------------------------------------------------------ */
 
-const phases = [
-  {
-    number: '01',
-    name: 'Rink Atlas',
-    label: 'Find the gaps',
-    description:
-      'Map rink access, transit, population, and recreation spaces to see where hockey is hardest to reach—and where a little investment can go furthest.',
-    detail: 'A shared picture of access',
-    icon: '⌖',
-  },
-  {
-    number: '02',
-    name: 'Play Streets',
-    label: 'Bring the game out',
-    description:
-      'Turn welcoming public spaces into pop-up places to play. Street hockey, try-it sessions, and local hosts make the first step feel easy.',
-    detail: 'Free, local, and made together',
-    icon: '↗',
-  },
-  {
-    number: '03',
-    name: 'Pop-up Rinks',
-    label: 'Make room to grow',
-    description:
-      'Use community feedback and local partnerships to shape seasonal skating experiences, equipment access, and pathways into ongoing play.',
-    detail: 'A city-specific next step',
-    icon: '✳',
-  },
+// Fictional city used for the demo. Need score blends distance to ice,
+// public ice time nearby, income and youth population.
+const hoods = [
+  { id: 'northfield', name: 'Northfield', x: 20, y: 105, w: 145, h: 90, km: 5.8, iceHrs: 2, income: 0.32, youth: 27 },
+  { id: 'oldmill', name: 'Old Mill', x: 205, y: 105, w: 210, h: 90, km: 3.2, iceHrs: 5, income: 0.55, youth: 21 },
+  { id: 'eastgate', name: 'Eastgate', x: 450, y: 115, w: 170, h: 95, km: 4.6, iceHrs: 3, income: 0.4, youth: 24 },
+  { id: 'westbrook', name: 'Westbrook', x: 20, y: 230, w: 145, h: 95, km: 2.5, iceHrs: 6, income: 0.48, youth: 19 },
+  { id: 'downtown', name: 'Downtown Core', x: 205, y: 228, w: 210, h: 100, km: 0.6, iceHrs: 14, income: 0.7, youth: 12 },
+  { id: 'harbour', name: 'Harbourview', x: 450, y: 245, w: 170, h: 85, km: 0.9, iceHrs: 11, income: 0.82, youth: 15 },
 ]
 
-const benefits = [
-  { value: '01', title: 'Closer to home', copy: 'Meet people where they are, not only where the ice is.' },
-  { value: '02', title: 'Easier to enter', copy: 'Make equipment, first-time play, and the culture of hockey less intimidating.' },
-  { value: '03', title: 'Built to belong', copy: 'Let each neighbourhood shape what hockey looks and feels like there.' },
+const rinks = [
+  { x: 385, y: 252 },
+  { x: 595, y: 268 },
 ]
 
-function App() {
+const scoreOf = (n) =>
+  Math.round(
+    Math.min(n.km / 6, 1) * 40 + (1 - Math.min(n.iceHrs / 15, 1)) * 20 + (1 - n.income) * 25 + Math.min(n.youth / 30, 1) * 15,
+  )
+
+const verdict = (s) =>
+  s >= 65 ? { label: 'Priority play street', color: 'var(--lime)' } : s >= 45 ? { label: 'Next wave', color: 'var(--orange)' } : { label: 'Support existing rink', color: 'var(--ice)' }
+
+const spots = {
+  closure: {
+    title: 'Street closure',
+    note: 'Clear entry/exit areas at both ends. Traffic is diverted to the parallel road, with extra traffic-watch on the perimeter.',
+  },
+  arena: {
+    title: 'Street hockey mini "arena"',
+    note: 'Low boards on the closed street. Sticks and balls provided — no skates, no gear, no sign-up.',
+  },
+  net: { title: 'Practice net', note: 'Drop-in shooting practice for first-timers while they wait for a game.' },
+  art: { title: 'Hockey-themed street art', note: 'Murals and installations painted by local artists, left behind after the event.' },
+  chalk: { title: 'Interactive chalk art', note: 'Chalk rinks, plays and drills on the sidewalk — hockey activities for the littlest fans.' },
+  tourney: {
+    title: 'Street hockey tourney / learn-to-play',
+    note: 'Uses nearby city-owned (or business) parking so the event does not depend on a rec centre with ice.',
+  },
+  meet: {
+    title: 'Meet the player',
+    note: 'Autographs and speakers from the PWHL, AHL, OHL and more — not only the NHL — so kids see themselves represented.',
+  },
+  young: { title: 'Young fans zone', note: 'Mini games, face paint and gear try-ons for kids.', park: true },
+  gather: { title: 'Space to gather', note: 'Shaded seating, food and room to just hang out.', park: true },
+  merch: { title: 'Merch booths & prizes', note: 'Local team booths, giveaways and an equipment swap table.', park: true },
+  watch: { title: 'Game-watch station', note: 'Big screen showing the game, with a rules-explainer host for new fans.', park: true },
+}
+
+const feedbackOptions = [
+  { id: 'skate', label: 'Learn to skate (pop-up rink)' },
+  { id: 'street', label: 'More street hockey' },
+  { id: 'gear', label: 'Equipment lending / swap' },
+  { id: 'watch', label: 'Neighbourhood watch parties' },
+]
+
+/* ------------------------------------------------------------------ */
+/* Small pieces                                                        */
+/* ------------------------------------------------------------------ */
+
+const Defs = () => (
+  <defs>
+    <filter id="rough">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" />
+      <feDisplacementMap in="SourceGraphic" scale="3.5" />
+    </filter>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="var(--ice)" strokeWidth="2.5" />
+    </pattern>
+  </defs>
+)
+
+function Bar({ value, max = 100, color }) {
   return (
-    <div className="overflow-hidden">
-      <header className="relative z-10 border-b border-white/10 bg-[#071b2a] text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-          <a href="#top" className="flex items-center gap-3" aria-label="Bring the Rink home">
-            <span className="grid h-9 w-9 place-items-center rounded-full border border-[#d9f0e5]/60 text-sm font-bold text-[#d9f0e5]">B/R</span>
-            <span className="text-sm font-bold tracking-[0.13em]">BRING THE RINK</span>
-          </a>
-          <nav aria-label="Main navigation" className="hidden items-center gap-8 text-sm text-white/70 md:flex">
-            <a className="transition hover:text-white" href="#why">The challenge</a>
-            <a className="transition hover:text-white" href="#approach">Our approach</a>
-            <a className="transition hover:text-white" href="#impact">The impact</a>
-            <a className="transition hover:text-white" href="#team">Our perspective</a>
-          </nav>
-          <a href="#approach" className="rounded-full bg-[#d9f0e5] px-4 py-2.5 text-xs font-bold tracking-wide text-[#092033] transition hover:bg-white sm:px-5">
-            Explore the idea <span aria-hidden="true" className="ml-1">↘</span>
-          </a>
-        </div>
-      </header>
-
-      <main id="top">
-        <section className="relative isolate overflow-hidden bg-[#071b2a] text-white">
-          <div aria-hidden="true" className="absolute -right-36 -top-32 -z-10 h-[34rem] w-[34rem] rounded-full border border-white/10 sm:right-[-5rem] sm:top-[-18rem] sm:h-[58rem] sm:w-[58rem]">
-            <div className="absolute inset-10 rounded-full border border-white/[0.08]" />
-            <div className="absolute inset-24 rounded-full border border-white/[0.08]" />
-            <div className="absolute inset-40 rounded-full border border-white/[0.08]" />
-          </div>
-          <div aria-hidden="true" className="absolute bottom-[-8rem] left-[-10rem] -z-10 h-80 w-80 rounded-full bg-[#d9f0e5]/[0.07] blur-3xl" />
-          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-16 sm:px-8 sm:pb-24 sm:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:px-12 lg:pb-32 lg:pt-28">
-            <div className="max-w-2xl">
-              <p className="mb-6 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-[#c8e8d9]">
-                <span className="h-px w-8 bg-[#c8e8d9]" /> A more open game
-              </p>
-              <h1 className="font-serif text-5xl leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-                Hockey belongs
-                <br />
-                <span className="italic text-[#c8e8d9]">everywhere.</span>
-              </h1>
-              <p className="mt-7 max-w-xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
-                What if the next great hockey community started on the street outside the rink? Bring The Rink is a people-first plan to make playing—and connecting with—the game easier to reach.
-              </p>
-              <div className="mt-9 flex flex-wrap items-center gap-4">
-                <a href="#approach" className="inline-flex items-center gap-2 rounded-full bg-[#d9f0e5] px-6 py-3.5 text-sm font-bold text-[#092033] transition hover:bg-white">
-                  See how it works <ArrowUpRight />
-                </a>
-                <a href="#why" className="px-3 py-3 text-sm font-semibold text-white/75 transition hover:text-white">
-                  Why access matters <span aria-hidden="true">↓</span>
-                </a>
-              </div>
-              <div className="mt-12 flex items-center gap-4 border-t border-white/15 pt-6">
-                <div className="flex -space-x-2" aria-hidden="true">
-                  <span className="h-8 w-8 rounded-full border-2 border-[#071b2a] bg-[#d9f0e5]" />
-                  <span className="h-8 w-8 rounded-full border-2 border-[#071b2a] bg-[#e6a77a]" />
-                  <span className="h-8 w-8 rounded-full border-2 border-[#071b2a] bg-[#a7c7d7]" />
-                </div>
-                <p className="text-xs leading-5 text-white/60">A community-led vision for<br className="sm:hidden" /> the future of hockey</p>
-              </div>
-            </div>
-
-            <div className="relative mx-auto w-full max-w-lg">
-              <div className="relative aspect-[1.08] overflow-hidden rounded-[2rem] border border-white/10 bg-[#102d3d] p-5 sm:p-8">
-                <div aria-hidden="true" className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(30deg, transparent 49.7%, rgba(255,255,255,.13) 50%, transparent 50.3%), linear-gradient(150deg, transparent 49.7%, rgba(255,255,255,.13) 50%, transparent 50.3%)', backgroundSize: '56px 56px' }} />
-                <div className="relative flex h-full flex-col justify-between rounded-[1.4rem] border border-dashed border-white/20 p-5 sm:p-7">
-                  <div className="flex items-start justify-between">
-                    <span className="rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">A new map of access</span>
-                    <span className="grid h-10 w-10 place-items-center rounded-full bg-[#d9f0e5] text-[#092033]"><Pin /></span>
-                  </div>
-                  <div className="absolute left-[13%] top-[25%] h-3 w-3 rounded-full bg-[#d9f0e5] shadow-[0_0_0_8px_rgba(217,240,229,.13)]" />
-                  <div className="absolute right-[19%] top-[39%] h-2.5 w-2.5 rounded-full bg-[#e6a77a] shadow-[0_0_0_7px_rgba(230,167,122,.14)]" />
-                  <div className="absolute left-[44%] top-[47%] h-3 w-3 rounded-full bg-[#d9f0e5] shadow-[0_0_0_8px_rgba(217,240,229,.13)]" />
-                  <div className="absolute bottom-[26%] right-[29%] h-2.5 w-2.5 rounded-full bg-[#e6a77a] shadow-[0_0_0_7px_rgba(230,167,122,.14)]" />
-                  <div className="absolute left-[19%] top-[33%] h-[1px] w-[37%] rotate-[29deg] bg-white/30" />
-                  <div className="absolute left-[45%] top-[52%] h-[1px] w-[34%] -rotate-[19deg] bg-white/30" />
-                  <div className="relative mt-auto rounded-2xl border border-white/10 bg-[#071b2a]/90 p-5 backdrop-blur-sm sm:p-6">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c8e8d9]">Access is more than a rink</p>
-                    <p className="mt-3 font-serif text-2xl leading-tight sm:text-3xl">Find the gap.<br />Meet the community.</p>
-                    <div className="mt-5 flex items-center justify-between border-t border-white/15 pt-4 text-xs text-white/60">
-                      <span>People + places + play</span><span aria-hidden="true">✳</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="absolute -bottom-5 -left-2 rounded-xl bg-[#e6a77a] px-4 py-3 text-[#092033] shadow-xl sm:-left-7 sm:px-5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em]">Start where people are</p>
-                <p className="mt-1 font-serif text-xl">Neighbourhood first</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="why" className="bg-[#f5f4ee] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#467062]">The barrier</p>
-              <h2 className="mt-5 max-w-lg font-serif text-4xl leading-[1.05] tracking-tight text-[#0b2534] sm:text-5xl">
-                The game is for everyone. The way in isn’t.
-              </h2>
-            </div>
-            <div className="max-w-2xl">
-              <p className="text-lg leading-8 text-[#41525a]">
-                Hockey asks a lot before you ever get to the first faceoff: a nearby rink, time, travel, specialized equipment, and the confidence to understand a game with its own language. For many communities, those barriers add up to a sport that feels out of reach.
-              </p>
-              <p className="mt-5 text-base leading-7 text-[#64727a]">
-                Physical access, cost, and cultural familiarity are connected. If we want more people to find the passion, community, and connection at the heart of hockey, we have to make the first invitation easier to accept.
-              </p>
-              <div className="mt-9 grid gap-3 sm:grid-cols-3">
-                {benefits.map((benefit) => (
-                  <div key={benefit.value} className="border-t border-[#cbd3cc] pt-4">
-                    <p className="text-xs font-bold tracking-[0.14em] text-[#467062]">{benefit.value}</p>
-                    <h3 className="mt-3 text-sm font-bold text-[#0b2534]">{benefit.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#64727a]">{benefit.copy}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="approach" className="bg-[#e6eee8] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="mx-auto max-w-7xl">
-            <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-              <div className="max-w-2xl">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#467062]">A phased approach</p>
-                <h2 className="mt-5 font-serif text-4xl leading-tight tracking-tight text-[#0b2534] sm:text-5xl">Listen first. Then bring the game closer.</h2>
-              </div>
-              <p className="max-w-md text-sm leading-6 text-[#64727a]">A flexible, city-by-city model—starting with what communities need, then building the right kind of play together.</p>
-            </div>
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
-              {phases.map((phase) => (
-                <article key={phase.number} className="group flex min-h-[22rem] flex-col rounded-2xl border border-[#d2ddd5] bg-[#f7f7f2] p-6 transition hover:-translate-y-1 hover:shadow-xl sm:p-8">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold tracking-[0.16em] text-[#467062]">PHASE {phase.number}</span>
-                    <span aria-hidden="true" className="grid h-11 w-11 place-items-center rounded-full bg-[#d9e8dd] font-serif text-2xl text-[#315d4d]">{phase.icon}</span>
-                  </div>
-                  <p className="mt-10 text-xs font-bold uppercase tracking-[0.16em] text-[#a46543]">{phase.label}</p>
-                  <h3 className="mt-2 font-serif text-3xl text-[#0b2534]">{phase.name}</h3>
-                  <p className="mt-4 text-sm leading-6 text-[#64727a]">{phase.description}</p>
-                  <div className="mt-auto flex items-center justify-between border-t border-[#d2ddd5] pt-5 text-xs font-semibold text-[#315d4d]">
-                    <span>{phase.detail}</span><span aria-hidden="true" className="transition group-hover:translate-x-1">→</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="impact" className="bg-[#f5f4ee] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
-            <div className="relative min-h-[25rem] overflow-hidden rounded-3xl bg-[#dce9df] p-7 sm:p-10">
-              <div aria-hidden="true" className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(#799485 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
-              <div className="absolute left-[12%] top-[20%] h-24 w-24 rounded-full border border-[#6c8c7c]/50" />
-              <div className="absolute left-[19%] top-[28%] h-10 w-10 rounded-full bg-[#e6a77a]" />
-              <div className="absolute right-[18%] top-[30%] h-16 w-16 rounded-full border border-dashed border-[#6c8c7c]" />
-              <div className="absolute right-[24%] top-[36%] h-5 w-5 rounded-full bg-[#315d4d]" />
-              <div className="absolute left-[43%] top-[50%] h-20 w-20 rounded-full border border-[#6c8c7c]/50" />
-              <div className="absolute left-[50%] top-[57%] h-5 w-5 rounded-full bg-[#315d4d]" />
-              <div className="absolute left-[22%] top-[38%] h-px w-[39%] rotate-[17deg] bg-[#789286]" />
-              <div className="absolute left-[51%] top-[55%] h-px w-[29%] -rotate-[15deg] bg-[#789286]" />
-              <div className="relative flex h-full min-h-[25rem] flex-col justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.17em] text-[#315d4d]"><Pin /> Designed with local insight</div>
-                <div className="max-w-xs rounded-2xl bg-[#f7f7f2] p-5 shadow-lg sm:p-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#a46543]">A useful first question</p>
-                  <p className="mt-3 font-serif text-2xl leading-tight text-[#0b2534]">Where could hockey show up next?</p>
-                </div>
-              </div>
-            </div>
-            <div className="self-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#467062]">Built for real-world impact</p>
-              <h2 className="mt-5 font-serif text-4xl leading-tight tracking-tight text-[#0b2534] sm:text-5xl">More than a moment. A way to belong.</h2>
-              <p className="mt-6 text-base leading-7 text-[#64727a]">
-                Play streets and pop-up rinks can create a low-pressure first connection. With local artists, recreation teams, nonprofits, and residents involved, each activation can reflect the place it calls home.
-              </p>
-              <div className="mt-8 space-y-5">
-                <div className="border-l-2 border-[#e6a77a] pl-5">
-                  <h3 className="font-bold text-[#0b2534]">Make play part of the neighbourhood</h3>
-                  <p className="mt-1 text-sm leading-6 text-[#64727a]">Toronto’s Bentway Play Path and community play-street projects show how public space can invite movement, discovery, and gathering.</p>
-                </div>
-                <div className="border-l-2 border-[#315d4d] pl-5">
-                  <h3 className="font-bold text-[#0b2534]">Create an invitation that lasts</h3>
-                  <p className="mt-1 text-sm leading-6 text-[#64727a]">The goal is not only a feel-good event—it’s a local connection to people, equipment, programs, and the game beyond the day itself.</p>
-                </div>
-              </div>
-              <a className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-[#315d4d] hover:text-[#a46543]" href="https://play.thebentway.ca/experience/play-path/" target="_blank" rel="noreferrer">
-                Explore the Bentway Play Path <ArrowUpRight />
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-[#102d3d] px-5 py-20 text-white sm:px-8 sm:py-24 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#c8e8d9]">Plan with purpose</p>
-              <h2 className="mt-5 font-serif text-4xl leading-tight tracking-tight sm:text-5xl">Use the data.<br /><span className="italic text-[#c8e8d9]">Keep the people.</span></h2>
-              <p className="mt-6 max-w-md text-base leading-7 text-white/65">
-                Good planning helps cities and the NHL understand where investment can make the biggest difference—before committing to a project.
-              </p>
-              <a className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[#c8e8d9] hover:text-white" href="https://www.udg.org.uk/publications/udlibrary/planning-play" target="_blank" rel="noreferrer">
-                Read about planning for play <ArrowUpRight />
-              </a>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
-                <span className="text-xs font-bold tracking-[0.15em] text-[#c8e8d9]">01 / UNDERSTAND</span>
-                <h3 className="mt-8 font-serif text-2xl">See the full picture</h3>
-                <p className="mt-3 text-sm leading-6 text-white/60">Bring rink locations, transit, public spaces, and community needs into the same conversation.</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
-                <span className="text-xs font-bold tracking-[0.15em] text-[#c8e8d9]">02 / LISTEN</span>
-                <h3 className="mt-8 font-serif text-2xl">Ask people who live there</h3>
-                <p className="mt-3 text-sm leading-6 text-white/60">Use feedback sessions and local partners to understand what would make a space welcoming.</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
-                <span className="text-xs font-bold tracking-[0.15em] text-[#c8e8d9]">03 / TRY</span>
-                <h3 className="mt-8 font-serif text-2xl">Start small, learn fast</h3>
-                <p className="mt-3 text-sm leading-6 text-white/60">Pilot pop-up programming and learn from participation, partner input, and what the community asks for next.</p>
-              </div>
-              <div className="flex flex-col justify-between rounded-2xl bg-[#d9f0e5] p-6 text-[#092033] sm:p-7">
-                <span className="text-xs font-bold tracking-[0.15em]">04 / GROW</span>
-                <p className="mt-8 font-serif text-3xl leading-tight">Let what works<br />travel further.</p>
-                <p className="mt-4 text-sm leading-6 text-[#415d52]">Share the learning. Keep each city’s approach its own.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="team" className="bg-[#f5f4ee] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:gap-24">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#467062]">Our perspective</p>
-              <h2 className="mt-5 font-serif text-4xl leading-tight tracking-tight text-[#0b2534] sm:text-5xl">Different routes to the game. One shared goal.</h2>
-            </div>
-            <div className="max-w-3xl">
-              <p className="text-lg leading-8 text-[#41525a]">
-                We bring together urban planning, engineering, and very different relationships with hockey. Some of us grew up surrounded by the game. One of us has never been skating, despite being a fan, because access to ice was out of reach.
-              </p>
-              <p className="mt-5 text-base leading-7 text-[#64727a]">
-                Those experiences shape the question we ask: how can existing public spaces become welcoming places to discover hockey? Our work combines practical planning with a belief that cities can create new ways for people to play, gather, and feel part of the game.
-              </p>
-              <div className="mt-9 flex flex-wrap gap-2">
-                {['Urban planning', 'Engineering', 'Hockey fans', 'Community first'].map((tag) => (
-                  <span key={tag} className="rounded-full border border-[#cbd3cc] px-4 py-2 text-xs font-semibold text-[#41525a]">{tag}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="bg-[#071b2a] px-5 py-10 text-white sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <a href="#top" className="text-sm font-bold tracking-[0.13em]">BRING THE RINK</a>
-            <p className="mt-2 text-sm text-white/55">A vision for a game with room for everyone.</p>
-          </div>
-          <a href="#top" className="inline-flex items-center gap-2 text-sm font-semibold text-[#c8e8d9] hover:text-white">Back to top <span aria-hidden="true">↑</span></a>
-        </div>
-        <div className="mx-auto mt-8 max-w-7xl border-t border-white/10 pt-5 text-xs text-white/40">
-          A concept for the NHL Innovation Challenge
-        </div>
-      </footer>
+    <div className="h-3 w-full rounded-full border-2 border-[var(--ink)] bg-white/60">
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(value / max) * 100}%`, background: color }} />
     </div>
   )
 }
 
-export default App
+function Card({ children, className = '' }) {
+  return <div className={`rounded-xl border-2 border-[var(--ink)] bg-[var(--paper)] p-5 shadow-[4px_4px_0_var(--ink)] ${className}`}>{children}</div>
+}
+
+/* ------------------------------------------------------------------ */
+/* Step 1: Rink Atlas                                                   */
+/* ------------------------------------------------------------------ */
+
+function Atlas({ selected, onSelect, onPlan }) {
+  const ranked = [...hoods].map((h) => ({ ...h, score: scoreOf(h) })).sort((a, b) => b.score - a.score)
+  const sel = ranked.find((h) => h.id === selected)
+  const v = verdict(sel.score)
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <Card className="self-start p-2 sm:p-3">
+        <svg viewBox="0 0 640 440" className="w-full" role="img" aria-label="Map of a city with neighbourhoods and rinks">
+          <Defs />
+          {/* lake */}
+          <path d="M0 375 Q160 355 320 380 T640 370 V440 H0Z" fill="var(--ice)" opacity="0.45" filter="url(#rough)" />
+          {/* streets */}
+          <g stroke="var(--slate)" strokeWidth="14" strokeLinecap="round" fill="none" filter="url(#rough)" opacity="0.85">
+            <path d="M-10 90 C200 80 420 100 650 84" />
+            <path d="M-10 212 C220 200 420 214 650 228" />
+            <path d="M-10 342 L650 350" />
+            <path d="M185 -10 L190 450" />
+            <path d="M435 -10 L430 450" />
+          </g>
+          {hoods.map((h) => {
+            const s = scoreOf(h)
+            const active = h.id === selected
+            return (
+              <g key={h.id} onClick={() => onSelect(h.id)} className="cursor-pointer" role="button" aria-label={h.name}>
+                <rect
+                  x={h.x}
+                  y={h.y}
+                  width={h.w}
+                  height={h.h}
+                  rx="8"
+                  fill={verdict(s).color}
+                  fillOpacity={active ? 0.85 : 0.35}
+                  stroke="var(--ink)"
+                  strokeWidth={active ? 3 : 1.5}
+                  strokeDasharray={active ? '0' : '6 5'}
+                  filter="url(#rough)"
+                  className="transition-all hover:fill-opacity-70"
+                />
+                <text x={h.x + 10} y={h.y + 26} className="hand text-[19px]" fill="var(--ink)">
+                  {h.name}
+                </text>
+                <text x={h.x + 10} y={h.y + h.h - 12} className="hand text-[15px]" fill="var(--ink)" opacity="0.75">
+                  need {s} · {h.km} km to ice
+                </text>
+              </g>
+            )
+          })}
+          {rinks.map((r, i) => (
+            <g key={i} pointerEvents="none">
+              <rect x={r.x - 16} y={r.y - 11} width="32" height="22" rx="9" fill="var(--ice)" stroke="var(--ink)" strokeWidth="2" filter="url(#rough)" />
+              <line x1={r.x} y1={r.y - 11} x2={r.x} y2={r.y + 11} stroke="var(--ink)" strokeWidth="1.5" />
+            </g>
+          ))}
+          <text x="20" y="40" className="marker text-[30px]" fill="var(--ink)">
+            [the city]
+          </text>
+          <g className="hand text-[15px]" fill="var(--ink)">
+            <rect x="470" y="22" width="22" height="15" rx="6" fill="var(--ice)" stroke="var(--ink)" strokeWidth="1.5" />
+            <text x="500" y="35">= existing rink</text>
+          </g>
+        </svg>
+      </Card>
+
+      <div className="flex flex-col gap-5">
+        <Card>
+          <p className="hand text-lg opacity-70">selected neighbourhood</p>
+          <h3 className="marker text-4xl leading-none">{sel.name}</h3>
+          <div className="mt-3 flex items-baseline gap-3">
+            <span className="marker text-6xl leading-none">{sel.score}</span>
+            <span className="hand text-lg">/ 100 need score</span>
+          </div>
+          <span className="hand mt-2 inline-block rounded-md border-2 border-[var(--ink)] px-2 text-lg" style={{ background: v.color }}>
+            → {v.label}
+          </span>
+          <div className="hand mt-4 space-y-2 text-lg">
+            <Row label={`Distance to ice: ${sel.km} km`}><Bar value={Math.min(sel.km, 6)} max={6} color="var(--orange)" /></Row>
+            <Row label={`Public ice nearby: ${sel.iceHrs} hrs/wk`}><Bar value={15 - Math.min(sel.iceHrs, 15)} max={15} color="var(--purple)" /></Row>
+            <Row label={`Cost barrier`}><Bar value={1 - sel.income} max={1} color="var(--slate)" /></Row>
+            <Row label={`Youth population: ${sel.youth}%`}><Bar value={sel.youth} max={30} color="var(--lime)" /></Row>
+          </div>
+          <button
+            onClick={onPlan}
+            className="marker mt-5 w-full rounded-lg border-2 border-[var(--ink)] bg-[var(--lime)] px-4 py-2 text-2xl shadow-[3px_3px_0_var(--ink)] transition hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none"
+          >
+            plan a play street here →
+          </button>
+        </Card>
+
+        <Card>
+          <p className="hand mb-2 text-lg opacity-70">ranked by need</p>
+          <ol className="hand space-y-1 text-lg">
+            {ranked.map((h, i) => (
+              <li key={h.id}>
+                <button onClick={() => onSelect(h.id)} className={`flex w-full items-center gap-3 rounded px-1 text-left ${h.id === selected ? 'bg-[var(--lime)]/50' : 'hover:bg-black/5'}`}>
+                  <span className="w-5">{i + 1}.</span>
+                  <span className="flex-1">{h.name}</span>
+                  <span className="h-3 w-3 rounded-full border border-[var(--ink)]" style={{ background: verdict(h.score).color }} />
+                  <span className="w-8 text-right">{h.score}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function Row({ label, children }) {
+  return (
+    <div>
+      <div>{label}</div>
+      {children}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Step 2: Play Street                                                  */
+/* ------------------------------------------------------------------ */
+
+function PlayStreet({ site }) {
+  const [active, setActive] = useState('arena')
+  const [park, setPark] = useState({ young: true, gather: true, merch: true, watch: true })
+  const spot = spots[active]
+  const on = Object.values(park).filter(Boolean).length
+
+  const hit = (id) => ({
+    onClick: () => setActive(id),
+    className: 'cursor-pointer',
+    role: 'button',
+    'aria-label': spots[id].title,
+    opacity: active === id ? 1 : 0.88,
+  })
+  const ring = (id) => (active === id ? { stroke: 'var(--ink)', strokeWidth: 3.5 } : { stroke: 'var(--ink)', strokeWidth: 1.5 })
+
+  const parkZones = [
+    { id: 'young', x: 28, y: 70, label: ['young', 'fans zone'] },
+    { id: 'gather', x: 118, y: 70, label: ['space to', 'gather'] },
+    { id: 'merch', x: 28, y: 165, label: ['merch booths', '& prizes'] },
+    { id: 'watch', x: 118, y: 165, label: ['game watch', 'station'] },
+  ]
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <Card className="self-start p-2 sm:p-3">
+        <svg viewBox="0 0 640 470" className="w-full" role="img" aria-label={`Play street layout for ${site}`}>
+          <Defs />
+          <text x="20" y="38" className="marker text-[28px]" fill="var(--ink)">park lands</text>
+          <text x="236" y="38" className="marker text-[28px]" fill="var(--ink)">street</text>
+          <text x="392" y="38" className="marker text-[28px]" fill="var(--ink)">city parking</text>
+
+          {/* park */}
+          <g filter="url(#rough)">
+            <path d="M22 62 H206 V255 L60 262 Q22 262 22 225Z" fill="none" stroke="var(--ink)" strokeWidth="2" />
+          </g>
+          {parkZones.map((z) => (
+            <g key={z.id} {...hit(z.id)}>
+              <rect
+                x={z.x}
+                y={z.y}
+                width="84"
+                height="88"
+                rx="6"
+                fill={park[z.id] ? 'var(--lime)' : 'transparent'}
+                strokeDasharray={park[z.id] ? '0' : '5 5'}
+                {...ring(z.id)}
+                filter="url(#rough)"
+              />
+              {z.label.map((l, i) => (
+                <text key={i} x={z.x + 42} y={z.y + 40 + i * 18} textAnchor="middle" className="hand text-[15px]" fill="var(--ink)" opacity={park[z.id] ? 1 : 0.45}>
+                  {park[z.id] ? l : i === 0 ? 'open' : 'green space'}
+                </text>
+              ))}
+            </g>
+          ))}
+
+          {/* sidewalks */}
+          <g fill="var(--lime)" filter="url(#rough)">
+            <rect x="222" y="55" width="10" height="400" rx="4" />
+            <rect x="342" y="55" width="10" height="400" rx="4" />
+          </g>
+          {/* street */}
+          <rect x="236" y="55" width="102" height="400" fill="none" stroke="var(--ink)" strokeWidth="2" filter="url(#rough)" />
+          {/* closures */}
+          {[55, 443].map((y) => (
+            <rect key={y} {...hit('closure')} x="236" y={y - 6} width="102" height="14" rx="3" fill="var(--orange)" {...ring('closure')} filter="url(#rough)" />
+          ))}
+          {/* mini arena */}
+          <g {...hit('arena')}>
+            <rect x="250" y="80" width="74" height="78" rx="14" fill="white" {...ring('arena')} filter="url(#rough)" />
+            <text x="287" y="112" textAnchor="middle" className="hand text-[14px]" fill="var(--ink)">street</text>
+            <text x="287" y="128" textAnchor="middle" className="hand text-[14px]" fill="var(--ink)">hockey</text>
+            <text x="287" y="144" textAnchor="middle" className="hand text-[14px]" fill="var(--ink)">mini arena</text>
+          </g>
+          {/* practice net */}
+          <g {...hit('net')}>
+            <path d="M262 215 A25 25 0 0 1 312 215 Z" fill="white" {...ring('net')} filter="url(#rough)" />
+            <text x="287" y="235" textAnchor="middle" className="hand text-[14px]" fill="var(--ink)">practice net</text>
+          </g>
+          {/* street art */}
+          <g {...hit('art')}>
+            <rect x="262" y="268" width="26" height="52" rx="4" fill="var(--purple)" {...ring('art')} filter="url(#rough)" />
+            <rect x="296" y="350" width="26" height="62" rx="4" fill="var(--purple)" {...ring('art')} filter="url(#rough)" />
+          </g>
+          {/* chalk */}
+          <g {...hit('chalk')}>
+            <circle cx="310" cy="300" r="10" fill="var(--purple)" {...ring('chalk')} filter="url(#rough)" />
+            <circle cx="268" cy="385" r="10" fill="var(--purple)" {...ring('chalk')} filter="url(#rough)" />
+            <circle cx="226" cy="340" r="8" fill="var(--purple)" {...ring('chalk')} filter="url(#rough)" />
+          </g>
+
+          {/* parking lot */}
+          <rect x="385" y="55" width="225" height="400" rx="10" fill="none" stroke="var(--slate)" strokeWidth="12" filter="url(#rough)" />
+          <g {...hit('tourney')}>
+            <rect x="410" y="80" width="175" height="240" rx="28" fill="url(#hatch)" {...ring('tourney')} filter="url(#rough)" />
+            <line x1="410" y1="200" x2="585" y2="200" stroke="var(--ink)" strokeWidth="2" />
+            <circle cx="497" cy="200" r="20" fill="none" stroke="var(--ink)" strokeWidth="2" />
+            <path d="M465 100 h-12 v12 M529 100 h12 v12 M465 300 h-12 v-12 M529 300 h12 v-12" stroke="var(--ink)" strokeWidth="2" fill="none" />
+            <text x="497" y="160" textAnchor="middle" className="hand text-[15px]" fill="var(--ink)">tourney /</text>
+            <text x="497" y="177" textAnchor="middle" className="hand text-[15px]" fill="var(--ink)">learn to play</text>
+          </g>
+          <g {...hit('meet')}>
+            <rect x="430" y="345" width="135" height="80" rx="6" fill="var(--ice)" {...ring('meet')} filter="url(#rough)" />
+            <text x="497" y="380" textAnchor="middle" className="hand text-[15px]" fill="var(--ink)">meet the</text>
+            <text x="497" y="398" textAnchor="middle" className="hand text-[15px]" fill="var(--ink)">player</text>
+          </g>
+        </svg>
+      </Card>
+
+      <div className="flex flex-col gap-5">
+        <Card>
+          <p className="hand text-lg opacity-70">tap anything on the plan</p>
+          <h3 className="marker text-4xl leading-none">{spot.title}</h3>
+          <p className="hand mt-3 text-xl leading-snug">{spot.note}</p>
+          {spot.park && (
+            <label className="hand mt-4 flex cursor-pointer items-center gap-3 text-xl">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[var(--lime)]"
+                checked={park[active]}
+                onChange={(e) => setPark({ ...park, [active]: e.target.checked })}
+              />
+              include at this site
+            </label>
+          )}
+        </Card>
+
+        <Card className="bg-[var(--note)]">
+          <p className="marker text-3xl leading-none">{site} set-up</p>
+          <ul className="hand mt-3 space-y-1 text-lg leading-snug">
+            <li>✓ uses local parks, parking lots, streets & sidewalks</li>
+            <li>✓ business or municipal lots wherever possible</li>
+            <li>✓ no rec centre or ice arena required</li>
+            <li>✓ {on} of 4 themed park activities</li>
+            <li>✓ traffic diverted to parallel road</li>
+          </ul>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Step 3: Feedback → what comes next                                   */
+/* ------------------------------------------------------------------ */
+
+function Feedback({ site }) {
+  const [votes, setVotes] = useState({ skate: 38, street: 31, gear: 27, watch: 14 })
+  const [mine, setMine] = useState(null)
+  const total = Object.values(votes).reduce((a, b) => a + b, 0)
+  const top = feedbackOptions.reduce((a, b) => (votes[b.id] > votes[a.id] ? b : a))
+  const colors = { skate: 'var(--ice)', street: 'var(--lime)', gear: 'var(--orange)', watch: 'var(--purple)' }
+
+  const vote = (id) => {
+    if (mine === id) return
+    setVotes((v) => ({ ...v, [id]: v[id] + 1, ...(mine ? { [mine]: v[mine] - 1 } : {}) }))
+    setMine(id)
+  }
+
+  const next = {
+    skate: `Bring a seasonal pop-up rink to ${site}, with free skate lending.`,
+    street: `Make the ${site} play street a monthly event.`,
+    gear: `Set up an equipment lending library with local partners in ${site}.`,
+    watch: `Run free watch parties with rules explainers in ${site}.`,
+  }[top.id]
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <Card>
+        <p className="hand text-lg opacity-70">exit survey at the {site} play street</p>
+        <h3 className="marker text-4xl leading-none">What would bring you back?</h3>
+        <div className="mt-5 space-y-4">
+          {feedbackOptions.map((o) => (
+            <button key={o.id} onClick={() => vote(o.id)} className={`hand block w-full rounded-lg border-2 p-3 text-left text-xl transition ${mine === o.id ? 'border-[var(--ink)] bg-white' : 'border-transparent hover:border-[var(--ink)]/40'}`}>
+              <div className="mb-1 flex justify-between">
+                <span>{mine === o.id ? '☑' : '☐'} {o.label}</span>
+                <span>{Math.round((votes[o.id] / total) * 100)}%</span>
+              </div>
+              <Bar value={votes[o.id]} max={total} color={colors[o.id]} />
+            </button>
+          ))}
+        </div>
+        <p className="hand mt-4 text-lg opacity-70">{total} responses</p>
+      </Card>
+
+      <div className="flex flex-col gap-5">
+        <Card className="bg-[var(--note)]">
+          <p className="hand text-lg opacity-70">recommended next step</p>
+          <p className="marker mt-1 text-3xl leading-tight">{next}</p>
+        </Card>
+        <Card>
+          <p className="marker text-3xl leading-none">the loop</p>
+          <ol className="hand mt-3 space-y-1 text-lg leading-snug">
+            <li>1. Atlas finds where ice is hardest to reach</li>
+            <li>2. Play street brings the game there first</li>
+            <li>3. Feedback decides what stays — pop-up rink, gear, more play</li>
+            <li>4. Results feed back into the Atlas</li>
+          </ol>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* App                                                                  */
+/* ------------------------------------------------------------------ */
+
+const steps = [
+  { n: 1, name: 'Rink Atlas', hint: 'find the gaps', color: 'var(--ice)' },
+  { n: 2, name: 'Play Street', hint: 'bring the game out', color: 'var(--lime)' },
+  { n: 3, name: 'Feedback', hint: 'decide what comes next', color: 'var(--orange)' },
+]
+
+export default function App() {
+  const [step, setStep] = useState(1)
+  const [site, setSite] = useState('northfield')
+  const siteName = hoods.find((h) => h.id === site).name
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <header className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="marker text-5xl leading-none sm:text-6xl">#BringTheRink</h1>
+          <p className="hand mt-1 text-xl opacity-75">bringing hockey to neighbourhoods far from the ice — demo</p>
+        </div>
+      </header>
+
+      <nav className="mb-6 flex flex-wrap gap-3" aria-label="Demo steps">
+        {steps.map((s) => (
+          <button
+            key={s.n}
+            onClick={() => setStep(s.n)}
+            aria-current={step === s.n ? 'step' : undefined}
+            className={`rounded-lg border-2 border-[var(--ink)] px-4 py-1.5 text-left transition ${step === s.n ? 'shadow-[3px_3px_0_var(--ink)]' : 'bg-transparent opacity-60 hover:opacity-100'}`}
+            style={step === s.n ? { background: s.color } : undefined}
+          >
+            <span className="marker block text-2xl leading-none">{s.n}. {s.name}</span>
+            <span className="hand text-base">{s.hint}</span>
+          </button>
+        ))}
+      </nav>
+
+      {step === 1 && (
+        <Atlas
+          selected={site}
+          onSelect={setSite}
+          onPlan={() => setStep(2)}
+        />
+      )}
+      {step === 2 && <PlayStreet key={site} site={siteName} />}
+      {step === 3 && <Feedback key={site} site={siteName} />}
+
+      <div className="mt-6 flex justify-between">
+        <button disabled={step === 1} onClick={() => setStep(step - 1)} className="hand text-xl underline decoration-2 underline-offset-4 disabled:invisible">
+          ← back
+        </button>
+        <button disabled={step === 3} onClick={() => setStep(step + 1)} className="hand text-xl underline decoration-2 underline-offset-4 disabled:invisible">
+          next →
+        </button>
+      </div>
+    </div>
+  )
+}
