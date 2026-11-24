@@ -1,30 +1,55 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #1d1d1f;
-  --paper: #fbfbf8;
-  --page: #ededea;
-  --dot: #c4c4bf;
-  --slate: #6b8291;
-  --lime: #bde34f;
-  --purple: #b57ddb;
-  --orange: #f39a3b;
-  --ice: #a8d4f0;
-  --note: #fff6b8;
+  /* neutrals */
+  --ink: #23303b;
+  --navy: #1b2f45;
+  --navy-2: #2a4561;
+  --muted: #5d6b77;
+  --line: #e3e7ea;
+  --line-strong: #c9d1d7;
+  --surface: #fbfbfa;
+  --surface-2: #f1f3f2;
+  /* muted marker palette, from the concept sketch */
+  --slate: #7f93a1;
+  --slate-soft: #c3cdd4;
+  --sage: #b9d38a;
+  --sage-soft: #e7f0d6;
+  --sage-ink: #4f6b28;
+  --lilac: #cdb9e3;
+  --amber: #edbc85;
+  --amber-soft: #f8e8d4;
+  --amber-ink: #8a5a1f;
+  --ice: #c7e0f0;
+  --ice-soft: #e6f1f8;
+  /* rink markings */
+  --red: #c8553d;
+  --blue-line: #2f5f8f;
+
   color: var(--ink);
-  font-family: "Patrick Hand", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
 }
 
 body {
   min-width: 320px;
   margin: 0;
-  background-color: var(--page);
-  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
-  background-size: 22px 22px;
+  background: var(--surface);
 }
 
-.hand { font-family: "Patrick Hand", ui-sans-serif, system-ui, sans-serif; }
-.marker { font-family: "Caveat", "Patrick Hand", cursive; font-weight: 700; }
+/* handwritten accents, used sparingly */
+.note { font-family: "Caveat", cursive; font-weight: 600; font-size: 1.15em; }
 
-::selection { background: var(--lime); }
+.dots {
+  background-color: var(--surface-2);
+  background-image: radial-gradient(var(--line-strong) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+::selection { background: var(--ice); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { scroll-behavior: auto; }
+  * { transition-duration: 0.01ms !important; }
+}
